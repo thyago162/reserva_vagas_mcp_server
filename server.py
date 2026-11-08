@@ -1,4 +1,5 @@
 import os
+from typing import Any, Dict, List
 from mcp.server import MCPServer
 from dotenv import load_dotenv
 import httpx
@@ -29,9 +30,12 @@ def obter_token_mcp() -> str:
     raise Exception("Falha ao autenticar o usuário MCP no backend Go.")
 
 @mcp.tool()
-def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> object:
+def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[Dict[str, Any]]:
     """
-    Busca na api a lista de escolas.
+    Busca e retorna uma LISTA (array) de escolas disponíveis que possuem vagas ativas 
+    próximas à localização informada.
+    IMPORTANTE: Analise TODOS os itens da lista retornada. Cada item representa uma escola 
+    com suas respetivas 'VagasEscolares'. Verifique todas as opções antes de responder ao usuário.
 
     ATENÇÃO/REGRA DE NEGÓCIO: Antes de chamar esta ferramenta para um candidato, você DEVIDAMENTE DEVE:
     1. Pedir os dados do candidato: (cpf, nome, data de nascimento, logradouro)
@@ -46,6 +50,7 @@ def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> objec
     Turnos que a escola atende.
     As vagas dispoíveis na escola.
     Caso a api retorne erro acima de 300, informar ao usuário que o sistema está fora do ar
+    Caso a api retorne as escolas com as vagas escolares vazias, informar que não encontrou nenhuma escola com vagas disponíveis.
     """
     try:
         token = obter_token_mcp()
