@@ -1,0 +1,56 @@
+# reserva_vagas_mcp_server
+
+Servidor **MCP (Model Context Protocol)** do sistema de reserva de vagas escolares. Expõe ao LLM as ferramentas para localizar o cidadão, listar as escolas mais próximas e realizar a reserva de vaga, e guarda o estado das sessões no **Redis**.
+
+Faz parte do projeto [reserva_vagas](https://github.com/thyago162/reserva_vagas). É consumido pelo [cliente MCP](https://github.com/thyago162/reserva_vagas_mcp_client), e a reserva é efetivada na API em Go do repositório principal.
+
+## Ferramentas disponíveis
+
+| Ferramenta | O que faz |
+|---|---|
+| `obter_lat_long` | Consulta a API do Google para obter a latitude e a longitude de quem está fazendo a reserva, usadas no cálculo de distância. |
+| `listar_escolas` | Lista as escolas mais próximas do cidadão com base na geolocalização. |
+| `verificar_reserva_existente` | Verifica se o CPF informado já possui uma reserva ativa. |
+| `realizar_reserva` | Com os dados do candidato já coletados, envia a reserva para a API. |
+
+### Fluxo típico
+
+1. `verificar_reserva_existente`: confere se já há reserva ativa para o CPF.
+2. `obter_lat_long`: localiza o cidadão a partir do endereço.
+3. `listar_escolas`: apresenta as escolas mais próximas.
+4. `realizar_reserva`: registra a reserva na escola escolhida.
+
+## Sessões
+
+As sessões ficam no Redis, identificadas por `<id da sessão>`, e guardam `<o que é armazenado>`. Expiram após `<tempo>`.
+
+## Tecnologias
+
+Python 3.10, `<SDK de MCP usado>`, Redis, API de geocodificação do Google
+
+## Como rodar
+
+```bash
+git clone https://github.com/thyago162/reserva_vagas_mcp_server
+cd reserva_vagas_mcp_server
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # preencha as variáveis
+python <arquivo_principal>.py
+```
+
+## Variáveis de ambiente
+
+| Variável | Descrição |
+|---|---|
+| `<GOOGLE_MAPS_API_KEY>` | Chave da API do Google |
+| `<URL_DO_REDIS>` | Conexão com o Redis |
+| `<URL_DA_API_GO>` | Endereço da API do `reserva_vagas` |
+
+## Privacidade
+
+O sistema lida com dados pessoais (endereço e CPF). Eles são usados apenas para localizar o cidadão, verificar reservas e registrar a vaga, e não devem ser gravados em logs.
+
+## Status
+
+Projeto em desenvolvimento. <o que já funciona e o que falta>
