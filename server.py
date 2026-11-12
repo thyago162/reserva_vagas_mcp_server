@@ -34,7 +34,6 @@ def obter_token_mcp() -> str:
     
     if response.status_code == 200:
         data = response.json()
-        print(data)
         _token_cache = data.get("access_token") # Ou o formato que seu backend retorna o JWT
         return _token_cache
     
@@ -168,7 +167,10 @@ def realizar_reserva(
         headers = {"Authorization": f"Bearer {token}"}
         cpf_cand = limpar_cpf(cpf_candidato)
         cpf_res = limpar_cpf(cpf_responsavel)
-        
+
+        if not validar_cpf(cpf_res):
+            return {"erro": True, "mensagem": "CPF do responsável inválido. Peça ao usuário para conferir o número."}
+
         # 2. Monta o payload de reserva com todos os dados recebidos
         payload = {
             "nome_candidato": nome_candidato,
