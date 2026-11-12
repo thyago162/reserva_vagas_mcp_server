@@ -1,10 +1,17 @@
 import re
 
+def limpar_cpf(cpf: str) -> str:
+    return re.sub(r"\D", "", cpf or "")
 
-def validar_formato_cpf(cpf: str) -> bool:
-    """Verifica se o CPF possui exatamente 11 dígitos numéricos."""
-    cpf_limpo = limpar_cpf(cpf)
-    return len(cpf_limpo) == 11 and not cpf_limpo == cpf_limpo[0] * 11
+def validar_cpf(cpf_limpo: str) -> bool:
+    """Recebe o CPF só com dígitos. Valida o formato e os dois dígitos verificadores."""
+    if len(cpf_limpo) != 11 or len(set(cpf_limpo)) == 1:
+        return False
 
-def limpar_cpf(cpf):
-    return re.sub(r'\D', '', cpf)
+    for posicao in (9, 10):
+        soma = sum(int(cpf_limpo[i]) * (posicao + 1 - i) for i in range(posicao))
+        digito = (soma * 10 % 11) % 10
+        if digito != int(cpf_limpo[posicao]):
+            return False
+
+    return True

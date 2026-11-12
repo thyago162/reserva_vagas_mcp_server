@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from mcp.server import MCPServer
 from dotenv import load_dotenv
 import httpx
-from utils import validar_formato_cpf, limpar_cpf
+from utils import validar_cpf, limpar_cpf
 from mcp.types import ToolAnnotations
 
 
@@ -44,17 +44,17 @@ def obter_token_mcp() -> str:
     readOnlyHint=True, destructiveHint=False,
     idempotentHint=True, openWorldHint=True))
 
-def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[Dict[str, Any]]:
+def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> List[Dict[str, Any]] | Dict[str, Any]:
     """
     Busca e retorna uma LISTA (array) de escolas disponíveis que possuem vagas ativas 
     próximas à localização informada.
     IMPORTANTE: Analise TODOS os itens da lista retornada. Cada item representa uma escola 
-    com suas respetivas 'VagasEscolares'. Verifique todas as opções antes de responder ao usuário.
+    com suas respectivas 'VagasEscolares'. Verifique todas as opções antes de responder ao usuário.
 
     ATENÇÃO/REGRA DE NEGÓCIO: Antes de chamar esta ferramenta para um candidato, você DEVIDAMENTE DEVE:
     1. Pedir os dados do candidato: (cpf, nome, data de nascimento, logradouro)
     2. Chamar a ferramenta 'verificar_reserva_existe', informando o CPF do candidato.
-    3. Chamar a ferramenta 'obter_lat_long' para pegar a latitude e longitude do endereço, infomração nescessária para calculo de distância.
+    3. Chamar a ferramenta 'obter_lat_long' para pegar a latitude e longitude do endereço, informação nescessária para calculo de distância.
     Só prossiga para a listar as escolas se o candidato não possuir uma reserva ativa (PENDENTE OU APROVADO)
 
     O retorno traz as escolas com as seguintes informações:
@@ -62,7 +62,7 @@ def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[
     Endereço da escola
     Escolaridades que a escola atende.
     Turnos que a escola atende.
-    As vagas dispoíveis na escola.
+    As vagas disponíveis na escola.
     Caso a api retorne erro acima de 300, informar ao usuário que o sistema está fora do ar
     Caso a api retorne as escolas com as vagas escolares vazias, informar que não encontrou nenhuma escola com vagas disponíveis.
     """
@@ -105,7 +105,10 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
     Caso a api retorne erro acima de 300, informar ao usuário que o sistema está fora do ar
     """
     try:
-        cpf = validar_formato_cpf(cpf_candidato)
+        cpf = limpar_cpf(cpf_candidato)
+        if not validar_cpf(cpf):
+            return {"erro": True, "mensagem": "CPF inválido. Peça ao usuário para conferir o número."}
+        
         url = os.getenv("BACKEND_API") + f"candidato/candidato-possui-reserva/{cpf}"
         response = httpx.get(url)
         
@@ -277,39 +280,6 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
             "mensagem": "O sistema está fora do ar no momento (falha de conexão)."
         }
 
-
-async def processar_resposta_reserva(status_code: int, dados_resposta: dict):
-    """
-    Processa o retorno da API de reserva conforme as regras de negócio especificadas:
-    - Status > 300: Sistema fora do ar.
-    - Status 201 (ou sucesso com reserva ativa): Verificar status (PENDENTE ou APROVADO) ou cancelada.
-    """
-    # 1. Tratamento de Erro da API (Status acima de 300)
-    if status_code > 300:
-        return "O sistema está fora do ar no momento. Por favor, tente novamente mais tarde."
-
-    # 2. Tratamento de Sucesso / Informações da Reserva
-    # Supondo que 'dados_resposta' contenha os dados do candidato e o 'status' da reserva
-    status_reserva = dados_resposta.get("status", "").upper()
-    nome_candidato = dados_resposta.get("nome_candidato", "Candidato")
-
-    mensagem_base = f"Informações da reserva para {nome_candidato}:\n- Status atual: {status_reserva}"
-
-    # 3. Validação de Reserva Ativa vs Cancelada
-    if status_reserva in ["PENDENTE", "APROVADO"]:
-        mensagem_adicional = (
-            "\n\n⚠️ Não é possível realizar uma nova reserva, "
-            "pois a mesma encontra-se ativa."
-        )
-    elif status_reserva == "CANCELADA":
-        mensagem_adicional = (
-            "\n\nℹ️ A reserva anterior está cancelada. "
-            "Uma nova reserva poderá ser feita."
-        )
-    else:
-        mensagem_adicional = f"\n\nStatus da reserva: {status_reserva}"
-
-    return mensagem_base + mensagem_adicional
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
