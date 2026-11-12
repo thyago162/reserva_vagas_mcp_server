@@ -12,32 +12,39 @@ _token_cache = None
 
 mcp = MCPServer("ReservaVagasMcp")
 
-def _auth_headers(force=False):
-       global _token_cache
-       if force:
-           _token_cache = None
-       return {"Authorization": f"Bearer {obter_token_mcp()}"}
-
-def obter_token_mcp() -> str:
+def obter_token_mcp(forcar_novo: bool = False) -> str:
     global _token_cache
-    if _token_cache:
+    if _token_cache and not forcar_novo:
         return _token_cache
-    
+
     # Faz o login com o usuário MCP criado no Go
-    response = httpx.post(os.getenv("BACKEND_API") + "login", json={
+    url = os.getenv("BACKEND_API") + "login"
+    params = {
         "email": os.getenv("MCP_EMAIL"),
         "senha": os.getenv("MCP_PWD")
-    }, timeout=10.0)
+    }
+    response = httpx.post(url, json=params, timeout=10.0)
 
-    if response.status_code == 401:
-        _auth_headers
-    
     if response.status_code == 200:
-        data = response.json()
-        _token_cache = data.get("access_token") # Ou o formato que seu backend retorna o JWT
+        _token_cache = response.json().get("access_token")
         return _token_cache
-    
+
+    _get_autenticado(url, params)
+       
+
     raise Exception("Falha ao autenticar o usuário MCP no backend Go.")
+
+
+def _get_autenticado(url: str, params: dict | None = None) -> httpx.Response:
+    def tentar(forcar_novo: bool):
+        token = obter_token_mcp(forcar_novo=forcar_novo)
+        return httpx.get(url, params=params,
+                         headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
+
+    resposta = tentar(forcar_novo=False)
+    if resposta.status_code == 401:          # token vencido
+        resposta = tentar(forcar_novo=True)  # pede outro e repete uma vez
+    return resposta
 
 @mcp.tool(annotations=ToolAnnotations(
     readOnlyHint=True, destructiveHint=False,
@@ -74,8 +81,11 @@ def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> L
             "latitude": latitude,
             "longitude": longitude
         }
-        
-        response = httpx.get(os.getenv("BACKEND_API") + "escolas/get-escolas-dt-nascimento", params=params, headers=headers)
+
+        response = _get_autenticado(
+            os.getenv("BACKEND_API") + "escolas/get-escolas-dt-nascimento",
+            params=params)
+       
         if response.status_code >= 300:
             return {
                 "erro": True,
@@ -171,6 +181,7 @@ def realizar_reserva(
         if not validar_cpf(cpf_res):
             return {"erro": True, "mensagem": "CPF do responsável inválido. Peça ao usuário para conferir o número."}
 
+        
         # 2. Monta o payload de reserva com todos os dados recebidos
         payload = {
             "nome_candidato": nome_candidato,
