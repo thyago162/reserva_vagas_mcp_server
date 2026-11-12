@@ -4,11 +4,19 @@ from mcp.server import MCPServer
 from dotenv import load_dotenv
 import httpx
 from utils import validar_formato_cpf, limpar_cpf
+from mcp.types import ToolAnnotations
+
 
 load_dotenv()
 _token_cache = None
 
 mcp = MCPServer("ReservaVagasMcp")
+
+def _auth_headers(force=False):
+       global _token_cache
+       if force:
+           _token_cache = None
+       return {"Authorization": f"Bearer {obter_token_mcp()}"}
 
 def obter_token_mcp() -> str:
     global _token_cache
@@ -16,10 +24,13 @@ def obter_token_mcp() -> str:
         return _token_cache
     
     # Faz o login com o usuário MCP criado no Go
-    response = httpx.post("http://localhost:3000/login", json={
+    response = httpx.post(os.getenv("BACKEND_API") + "login", json={
         "email": os.getenv("MCP_EMAIL"),
         "senha": os.getenv("MCP_PWD")
-    })
+    }, timeout=10.0)
+
+    if response.status_code == 401:
+        _auth_headers
     
     if response.status_code == 200:
         data = response.json()
@@ -29,7 +40,10 @@ def obter_token_mcp() -> str:
     
     raise Exception("Falha ao autenticar o usuário MCP no backend Go.")
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True))
+
 def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[Dict[str, Any]]:
     """
     Busca e retorna uma LISTA (array) de escolas disponíveis que possuem vagas ativas 
@@ -41,7 +55,7 @@ def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[
     1. Pedir os dados do candidato: (cpf, nome, data de nascimento, logradouro)
     2. Chamar a ferramenta 'verificar_reserva_existe', informando o CPF do candidato.
     3. Chamar a ferramenta 'obter_lat_long' para pegar a latitude e longitude do endereço, infomração nescessária para calculo de distância.
-    Só prossiga para a listar as escolas se o candidato não possuir uma reserva ativa (PENDENTE OU RECUSADO)
+    Só prossiga para a listar as escolas se o candidato não possuir uma reserva ativa (PENDENTE OU APROVADO)
 
     O retorno traz as escolas com as seguintes informações:
     Dados da escola.
@@ -62,7 +76,7 @@ def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[
             "longitude": longitude
         }
         
-        response = httpx.get("http://localhost:3000/escolas/get-escolas-dt-nascimento", params=params, headers=headers)
+        response = httpx.get(os.getenv("BACKEND_API") + "escolas/get-escolas-dt-nascimento", params=params, headers=headers)
         if response.status_code >= 300:
             return {
                 "erro": True,
@@ -77,7 +91,9 @@ def listar_escolas(data_nascimento: str, latitude: str, longitude: str) -> List[
         }
    
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True))
 def verificar_reserva_existe(cpf_candidato: str) -> object:
     """
     Verifica na api se o candidato já possui uma reserva ativa.
@@ -90,7 +106,7 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
     """
     try:
         cpf = validar_formato_cpf(cpf_candidato)
-        url = f"http://localhost:3000/candidato/candidato-possui-reserva/{cpf}"
+        url = os.getenv("BACKEND_API") + f"candidato/candidato-possui-reserva/{cpf}"
         response = httpx.get(url)
         
         if response.status_code >= 300:
@@ -108,7 +124,9 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
         }
  
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True))
 def realizar_reserva(
     nome_candidato: str,
     cpf_candidato: str,
@@ -176,7 +194,7 @@ def realizar_reserva(
 
         # 3. Realiza a requisição de reserva enviando o JSON e os Headers
         response = httpx.post(
-            "http://localhost:3000/reserva-vagas/realizar-reserva",
+            os.getenv("BACKEND_API") + "reserva-vagas/realizar-reserva",
             json=payload,
             headers=headers
         )
@@ -195,7 +213,9 @@ def realizar_reserva(
             "mensagem": "O sistema está fora do ar no momento (falha de conexão)."
         }
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False,
+    idempotentHint=True, openWorldHint=True))
 def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> dict:
     """
     Envia as informações do endereço para obter a latitude e longitude.
@@ -210,16 +230,16 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
     
     params = {
         "address": endereco,
-        "key": os.getenv('key'),
+        "key": os.getenv("GOOGLE_MAPS_API_KEY"),
         "region": "br",
     }
 
     headers = {
-        "User-Agent": "MeuAppDeEscolas/1.0 (thyago.lbrasileiro@gmail.com)"
+        "User-Agent": "MeuAppDeEscolas/1.0"
     }
     
     try:
-        response = httpx.get("https://maps.googleapis.com/maps/api/geocode/json", params=params, headers=headers)
+        response = httpx.get(os.getenv("GOOGLE_MAPS_API_URL"), params=params, headers=headers)
         
         if response.status_code >= 300:
             return {
