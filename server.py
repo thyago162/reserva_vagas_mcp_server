@@ -17,7 +17,6 @@ def obter_token_mcp(forcar_novo: bool = False) -> str:
     if _token_cache and not forcar_novo:
         return _token_cache
 
-    # Faz o login com o usuário MCP criado no Go
     url = os.getenv("BACKEND_API") + "login"
     params = {
         "email": os.getenv("MCP_EMAIL"),
@@ -29,10 +28,7 @@ def obter_token_mcp(forcar_novo: bool = False) -> str:
         _token_cache = response.json().get("access_token")
         return _token_cache
 
-    _get_autenticado(url, params)
-       
     raise Exception("Falha ao autenticar o usuário MCP no backend Go.")
-
 
 def _get_autenticado(url: str, params: dict | None = None) -> httpx.Response:
     def tentar(forcar_novo: bool):
@@ -48,7 +44,6 @@ def _get_autenticado(url: str, params: dict | None = None) -> httpx.Response:
 @mcp.tool(annotations=ToolAnnotations(
     readOnlyHint=True, destructiveHint=False,
     idempotentHint=True, openWorldHint=True))
-
 def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> List[Dict[str, Any]] | Dict[str, Any]:
     """
     Busca e retorna uma LISTA (array) de escolas disponíveis que possuem vagas ativas 
@@ -59,7 +54,7 @@ def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> L
     ATENÇÃO/REGRA DE NEGÓCIO: Antes de chamar esta ferramenta para um candidato, você DEVIDAMENTE DEVE:
     1. Pedir os dados do candidato: (cpf, nome, data de nascimento, logradouro)
     2. Chamar a ferramenta 'verificar_reserva_existe', informando o CPF do candidato.
-    3. Chamar a ferramenta 'obter_lat_long' para pegar a latitude e longitude do endereço, informação nescessária para calculo de distância.
+    3. Chamar a ferramenta 'obter_lat_long' para pegar a latitude e longitude do endereço, informação necessária para cálculo de distância.
     Só prossiga para a listar as escolas se o candidato não possuir uma reserva ativa (PENDENTE OU APROVADO)
 
     O retorno traz as escolas com as seguintes informações:
@@ -72,9 +67,6 @@ def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> L
     Caso a api retorne as escolas com as vagas escolares vazias, informar que não encontrou nenhuma escola com vagas disponíveis.
     """
     try:
-        token = obter_token_mcp()
-        headers = {"Authorization": f"Bearer {token}"}
-
         params = {
             "data_nascimento": data_nascimento.replace("/", "-"),
             "latitude": latitude,
@@ -84,7 +76,6 @@ def listar_escolas(data_nascimento: str, latitude: float, longitude: float) -> L
         response = _get_autenticado(
             os.getenv("BACKEND_API") + "escolas/get-escolas-dt-nascimento",
             params=params)
-       
         if response.status_code >= 300:
             return {
                 "erro": True,
@@ -118,7 +109,7 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
             return {"erro": True, "mensagem": "CPF inválido. Peça ao usuário para conferir o número."}
         
         url = os.getenv("BACKEND_API") + f"candidato/candidato-possui-reserva/{cpf}"
-        response = httpx.get(url)
+        response = httpx.get(url, timeout=10.0)
         
         if response.status_code >= 300:
             return {
@@ -127,7 +118,6 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
             }
 
         return response.json()
-
     except httpx.RequestError:
         return {
             "erro": True,
@@ -137,7 +127,7 @@ def verificar_reserva_existe(cpf_candidato: str) -> object:
 
 @mcp.tool(annotations=ToolAnnotations(
     readOnlyHint=False, destructiveHint=False,
-    idempotentHint=True, openWorldHint=True))
+    idempotentHint=False, openWorldHint=True))
 def realizar_reserva(
     nome_candidato: str,
     cpf_candidato: str,
@@ -179,9 +169,9 @@ def realizar_reserva(
 
         if not validar_cpf(cpf_res):
             return {"erro": True, "mensagem": "CPF do responsável inválido. Peça ao usuário para conferir o número."}
+        if not validar_cpf(cpf_cand):
+            return {"erro": True, "mensagem": "CPF do candidato inválido. Peça ao usuário para conferir o número."}
 
-        
-        # 2. Monta o payload de reserva com todos os dados recebidos
         payload = {
             "nome_candidato": nome_candidato,
             "cpf_candidato": cpf_cand,
@@ -207,11 +197,11 @@ def realizar_reserva(
             "escola_id": escola_id
         }
 
-        # 3. Realiza a requisição de reserva enviando o JSON e os Headers
         response = httpx.post(
             os.getenv("BACKEND_API") + "reserva-vagas/realizar-reserva",
             json=payload,
-            headers=headers
+            headers=headers,
+            timeout=10.0
         )
 
         if response.status_code >= 300:
@@ -240,9 +230,8 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
     1. Informar que não pode prosseguir com a reserva com este endereço e peça outro endereço.
     2. Caso não seja passado um novo endereço, diga que não é possível continuar com a reserva.
     """
-    # 1. Correção da concatenação de strings usando f-string
-    endereco = f"{logradouro}, {numero}, {bairro}, {cidade}"
-    
+
+    endereco = f"{logradouro}, {numero}, {bairro}, {cidade}"    
     params = {
         "address": endereco,
         "key": os.getenv("GOOGLE_MAPS_API_KEY"),
@@ -254,7 +243,7 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
     }
     
     try:
-        response = httpx.get(GOOGLE_GEOCODE_URL, params=params, headers=headers)
+        response = httpx.get(GOOGLE_GEOCODE_URL, params=params, headers=headers, timeout=10.0)
         
         if response.status_code >= 300:
             return {
@@ -263,8 +252,6 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
             }
         
         data = response.json()
-        
-        # 2. Correção da validação de endereço não encontrado no formato do Google
         if data.get("status") == "ZERO_RESULTS" or not data.get("results"):
             return {
                 "erro": True,
@@ -272,14 +259,12 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
                 "mensagem": "Endereço não encontrado. Solicite ao usuário um endereço válido com logradouro e CEP."
             }
 
-        # Se o status da API for qualquer coisa diferente de "OK" (ex: REQUEST_DENIED por causa do faturamento)
         if data.get("status") != "OK":
             return {
                 "erro": True,
                 "mensagem": f"Erro na API do Google: {data.get('status')}"
             }
 
-        # 3. Correção do mapeamento das chaves de latitude e longitude ('geometry')
         location = data['results'][0]['geometry']['location']
         return {
             "latitude": location['lat'],
@@ -291,7 +276,6 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
             "erro": True,
             "mensagem": "O sistema está fora do ar no momento (falha de conexão)."
         }
-
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
