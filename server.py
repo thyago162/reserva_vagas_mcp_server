@@ -6,7 +6,7 @@ import httpx
 from utils import validar_cpf, limpar_cpf
 from mcp.types import ToolAnnotations
 
-
+GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 load_dotenv()
 _token_cache = None
 
@@ -31,7 +31,6 @@ def obter_token_mcp(forcar_novo: bool = False) -> str:
 
     _get_autenticado(url, params)
        
-
     raise Exception("Falha ao autenticar o usuário MCP no backend Go.")
 
 
@@ -255,7 +254,7 @@ def obter_lat_long(logradouro: str, numero: str, bairro: str, cidade: str) -> di
     }
     
     try:
-        response = httpx.get(os.getenv("GOOGLE_MAPS_API_URL"), params=params, headers=headers)
+        response = httpx.get(GOOGLE_GEOCODE_URL, params=params, headers=headers)
         
         if response.status_code >= 300:
             return {
