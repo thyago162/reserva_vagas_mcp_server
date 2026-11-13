@@ -1,6 +1,6 @@
 # reserva_vagas_mcp_server
 
-Servidor **MCP (Model Context Protocol)** do sistema de reserva de vagas escolares. Expõe ao LLM as ferramentas para localizar o cidadão, listar as escolas mais próximas e realizar a reserva de vaga, e guarda o estado das sessões no **Redis**.
+Servidor **MCP (Model Context Protocol)** do sistema de reserva de vagas escolares. Expõe ao LLM as ferramentas para localizar o cidadão, listar as escolas mais próximas e realizar a reserva de vaga.
 
 Faz parte do projeto [reserva_vagas](https://github.com/thyago162/reserva_vagas). É consumido pelo [cliente MCP](https://github.com/thyago162/reserva_vagas_mcp_client), e a reserva é efetivada na API em Go do repositório principal.
 
@@ -19,10 +19,6 @@ Faz parte do projeto [reserva_vagas](https://github.com/thyago162/reserva_vagas)
 2. obter_lat_long: localiza o cidadão a partir do endereço.
 3. listar_escolas: apresenta as escolas mais próximas.
 4. realizar_reserva: registra a reserva na escola escolhida.
-
-## Sessões
-
-As sessões ficam no Redis, identificadas por `<id da sessão>`, e guardam `<o que é armazenado>`. Expiram após `<tempo>`.
 
 ## Tecnologias
 
@@ -44,7 +40,6 @@ python <arquivo_principal>.py
 | Variável | Descrição |
 |---|---|
 | GOOGLE_MAPS_API_KEY | Chave da API de geocodificação do Google|
-| URL_DO_REDIS | Conexão com o Redis |
 | BACKEND_API | Endereço da API do reserva_vagas |
 | MCP_EMAIL | Email criado ao subir a aplicação reserva_vagas |
 | MCP_PWD | Senha criada ao subir a aplicação do reserva_vagas |

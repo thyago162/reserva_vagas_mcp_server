@@ -37,8 +37,8 @@ def _get_autenticado(url: str, params: dict | None = None) -> httpx.Response:
                          headers={"Authorization": f"Bearer {token}"}, timeout=10.0)
 
     resposta = tentar(forcar_novo=False)
-    if resposta.status_code == 401:          # token vencido
-        resposta = tentar(forcar_novo=True)  # pede outro e repete uma vez
+    if resposta.status_code == 401:         
+        resposta = tentar(forcar_novo=True)
     return resposta
 
 @mcp.tool(annotations=ToolAnnotations(
